@@ -1,0 +1,23 @@
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: example-ingress
+  namespace: example
+  annotations:
+    traefik.ingress.kubernetes.io/router.tls.certresolver: ovhresolver # <-- This name is set in the values.yaml
+spec:
+  rules:
+  - host: "example.your-domain.com" # <-- Add you own domain
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: example-service  # <-- This in linked to your application service
+            port:
+              name: http
+  tls:
+  - hosts:
+    - "example.your-domain.com" # <-- Add you own domain
