@@ -42,6 +42,9 @@ microk8s helm3 install traefik traefik/traefik \
   --namespace=traefik \
   --create-namespace \
   -f traefik-values.yaml
+
+## Add RBAC access for Traefik ingress
+kubectl apply -f https://raw.githubusercontent.com/traefik/traefik/master/docs/content/reference/dynamic-configuration/kubernetes-crd-rbac.yml
 ```
 
 <br>
