@@ -7,7 +7,7 @@ envFrom:
       name: ovh-credentials
 
 certificatesResolvers:
-  ovhresolver:  # <-- TLS resolver name
+  ovhresolver:
     acme:
       email: "admin@verbois.ovh"
       storage: "/data/acme.json"
@@ -24,7 +24,13 @@ providers:
 
 ports:
   web:
-    port: 8000
+    address: ":8000"
+    http:
+      redirections:
+        entryPoint:
+          to: websecure
+          scheme: https
+          permanent: true
   websecure:
     port: 8443
 
@@ -32,10 +38,10 @@ service:
   type: LoadBalancer
   ports:
     web:
-      port: 80 # Listen behind a loadbalancer on port 80
+      port: 80
       targetPort: 8000
     websecure:
-      port: 443 # Listen behind a loadbalancer on port 80
+      port: 443
       targetPort: 8443
 
 deployment:
