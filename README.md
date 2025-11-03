@@ -49,6 +49,13 @@ kubectl apply -f https://raw.githubusercontent.com/traefik/traefik/master/docs/c
 
 <br>
 
+# Updating
+```bash
+microk8s helm3 upgrade traefik traefik/traefik -f values.yaml -n traefik
+```
+
+<br>
+
 # Check if everything is OK
 ```bash
 # Check if the pod in running correctly
