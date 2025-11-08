@@ -55,7 +55,7 @@ kubectl apply -f https://raw.githubusercontent.com/traefik/traefik/master/docs/c
 
 <br>
 
-# Updating traefik and configuration (based on values.yaml)
+# Updating traefik and configuration 
 ```bash
 microk8s helm3 upgrade traefik traefik/traefik -f values.yaml -n traefik
 ```
