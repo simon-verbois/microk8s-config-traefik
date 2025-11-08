@@ -9,7 +9,7 @@ envFrom:
 certificatesResolvers:
   ovhresolver:
     acme:
-      email: "admin@example.org" # Add your admin contact mail
+      email: "admin@example.org" # Change this with your admin mail
       storage: "/data/acme.json"
       dnsChallenge:
         provider: "ovh"
@@ -30,11 +30,18 @@ additionalArguments:
   - "--entrypoints.websecure.http.tls=true"
   - "--api.dashboard=false"
 
+entrypoints:
+  websecure:
+    http:
+      compress: {}
+      tls:
+        sniStrict: true
+
 persistence:
   enabled: true
   path: /data
   size: 1Gi
-  storageClass: hostpath-sc # Add your storage class name
+  storageClass: hostpath-sc # Change this with your storageClass name
 
 service:
   type: LoadBalancer

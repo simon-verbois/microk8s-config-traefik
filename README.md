@@ -10,6 +10,7 @@
 - This implementation has been tested on RHEL 9
 - All this implementation has been done with a non root user (in microk8s group)
 - An ingress example is available, but there is not real testing in the repository for Traefik as you need a full app to test
+- You need a load balancer setup (MetalLB in my case)
 
 <br>
 
@@ -49,12 +50,12 @@ microk8s helm3 install traefik traefik/traefik \
   -f values.yaml
 
 ## Add traefik CRD
-microk8s kubectl apply -f [https://raw.githubusercontent.com/traefik/traefik-helm-chart/master/traefik/crds/traefik.io_ingressroutes.yaml](https://raw.githubusercontent.com/traefik/traefik-helm-chart/master/traefik/crds/traefik.io_ingressroutes.yaml)
-microk8s kubectl apply -f [https://raw.githubusercontent.com/traefik/traefik-helm-chart/master/traefik/crds/traefik.io_middlewares.yaml](https://raw.githubusercontent.com/traefik/traefik-helm-chart/master/traefik/crds/traefik.io_middlewares.yaml)
-microk8s kubectl apply -f [https://raw.githubusercontent.com/traefik/traefik-helm-chart/master/traefik/crds/traefik.io_serverstransports.yaml](https://raw.githubusercontent.com/traefik/traefik-helm-chart/master/traefik/crds/traefik.io_serverstransports.yaml)
-microk8s kubectl apply -f [https://raw.githubusercontent.com/traefik/traefik-helm-chart/master/traefik/crds/traefik.io_tlsoptions.yaml](https://raw.githubusercontent.com/traefik/traefik-helm-chart/master/traefik/crds/traefik.io_tlsoptions.yaml)
-microk8s kubectl apply -f [https://raw.githubusercontent.com/traefik/traefik-helm-chart/master/traefik/crds/traefik.io_tlsstores.yaml](https://raw.githubusercontent.com/traefik/traefik-helm-chart/master/traefik/crds/traefik.io_tlsstores.yaml)
-microk8s kubectl apply -f [https://raw.githubusercontent.com/traefik/traefik-helm-chart/master/traefik/crds/traefik.io_traefikservices.yaml](https://raw.githubusercontent.com/traefik/traefik-helm-chart/master/traefik/crds/traefik.io_traefikservices.yaml)
+microk8s kubectl apply -f https://raw.githubusercontent.com/traefik/traefik-helm-chart/master/traefik/crds/traefik.io_ingressroutes.yaml
+microk8s kubectl apply -f https://raw.githubusercontent.com/traefik/traefik-helm-chart/master/traefik/crds/traefik.io_middlewares.yaml
+microk8s kubectl apply -f https://raw.githubusercontent.com/traefik/traefik-helm-chart/master/traefik/crds/traefik.io_serverstransports.yaml
+microk8s kubectl apply -f https://raw.githubusercontent.com/traefik/traefik-helm-chart/master/traefik/crds/traefik.io_tlsoptions.yaml
+microk8s kubectl apply -f https://raw.githubusercontent.com/traefik/traefik-helm-chart/master/traefik/crds/traefik.io_tlsstores.yaml
+microk8s kubectl apply -f https://raw.githubusercontent.com/traefik/traefik-helm-chart/master/traefik/crds/traefik.io_traefikservices.yaml
 ````
 
 <br>
@@ -75,7 +76,8 @@ The `values.yaml` file configures the Traefik deployment. Here is a breakdown of
       * `--entrypoints.web.http.redirections...`: Sets up a global redirect from HTTP (web) to HTTPS (websecure) on port 443.
       * `--api.dashboard=false`: Disables the insecure Traefik dashboard.
   * `entrypoints`: Configures properties on the entrypoints defined in `additionalArguments`.
-      * `websecure.http.compress: {}`: Enables default (Gzip) compression on all traffic coming through the `websecure` (HTTPS) entrypoint.
+      * `websecure.http.compress: {}`: Enables default (Gzip) compression on all HTTPS traffic.
+      * `websecure.tls.sniStrict: true`: Enables Strict SNI, enhancing security by rejecting requests that do not specify a server name.
   * `persistence`: Ensures certificate data (`acme.json`) is persistent.
       * Creates a 1Gi Persistent Volume Claim using the `hostpath-sc` storage class, mounted at `/data`.
   * `service`: Defines the Kubernetes `LoadBalancer` service that exposes Traefik.
@@ -110,6 +112,8 @@ microk8s kubectl -n traefik logs -f -l app.kubernetes.io/name=traefik
 
 # IngressRoute example
 
+This example shows how to configure an `IngressRoute` with OWASP-recommended security headers, a rate limit, and a modern TLS profile.
+
 ```yaml
 ---
 apiVersion: traefik.io/v1alpha1
@@ -121,10 +125,13 @@ spec:
   headers:
     frameDeny: true
     contentTypeNosniff: true
-    browserXssFilter: true
     stsSeconds: 31536000
     stsIncludeSubdomains: true
     stsPreload: true
+    customResponseHeaders:
+      Content-Security-Policy: "script-src 'self'"
+      Referrer-Policy: "strict-origin-when-cross-origin"
+      Permissions-Policy: "camera=(), microphone=(), geolocation=(), payment=(), usb=()"
 ---
 apiVersion: traefik.io/v1alpha1
 kind: Middleware
@@ -136,6 +143,20 @@ spec:
     average: 100
     period: "1m"
     burst: 50
+---
+apiVersion: traefik.io/v1alpha1
+kind: TLSOption
+metadata:
+  name: example-tls-profile
+  namespace: example # <-- Change to your app's namespace
+spec:
+  minVersion: VersionTLS12
+  cipherSuites:
+    - TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256
+    - TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384
+    - TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256
+    - TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384
+    - TLS_CHACHA20_POLY1305_SHA256
 ---
 apiVersion: traefik.io/v1alpha1
 kind: IngressRoute
@@ -158,4 +179,6 @@ spec:
     certResolver: ovhresolver # <-- Uses the resolver from values.yaml
     domains:
       - main: "example.your-domain.com" # <-- Change to your domain
+    options:
+      name: example-tls-profile # <-- Links to the TLSOption created above
 ```
