@@ -9,7 +9,7 @@ envFrom:
 certificatesResolvers:
   ovhresolver:
     acme:
-      email: "admin@your-domain.com"
+      email: "admin@example.org" # Add your admin contact mail
       storage: "/data/acme.json"
       dnsChallenge:
         provider: "ovh"
@@ -22,17 +22,19 @@ providers:
   kubernetesIngress:
     enabled: true
 
-ports:
-  web:
-    address: ":8000"
-    http:
-      redirections:
-        entryPoint:
-          to: websecure
-          scheme: https
-          permanent: true
-  websecure:
-    port: 8443
+additionalArguments:
+  - "--entrypoints.web.address=:8000"
+  - "--entrypoints.web.http.redirections.entryPoint.to=:443"
+  - "--entrypoints.web.http.redirections.entryPoint.scheme=https"
+  - "--entrypoints.websecure.address=:8443"
+  - "--entrypoints.websecure.http.tls=true"
+  - "--api.dashboard=false"
+
+persistence:
+  enabled: true
+  path: /data
+  size: 1Gi
+  storageClass: hostpath-sc # Add your storage class name
 
 service:
   type: LoadBalancer
@@ -47,3 +49,4 @@ service:
 deployment:
   strategy:
     type: Recreate
+
