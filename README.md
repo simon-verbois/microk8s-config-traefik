@@ -8,7 +8,6 @@
 
 # Note
 - This implementation has been tested on RHEL 9
-- There is an alias setup on my profile: `alias kubectl='microk8s kubectl'`
 - All this implementation has been done with a non root user (in microk8s group)
 - An ingress example is available, but there is not real testing in the repository for Traefik as you need a full app to test
 
@@ -22,7 +21,7 @@ microk8s enable helm3 metallb
 ## Add a range that's in your cluster subnet
 
 # Check all pods status
-kubectl create namespace traefik
+microk8s kubectl create namespace traefik
 
 # Create a secret in the traefik namespace we just created
 # Create your API credentials here: https://eu.api.ovh.com/createToken/
@@ -50,7 +49,13 @@ microk8s helm3 install traefik traefik/traefik \
   -f values.yaml
 
 ## Add RBAC access for Traefik ingress
-kubectl apply -f https://raw.githubusercontent.com/traefik/traefik/master/docs/content/reference/dynamic-configuration/kubernetes-crd-rbac.yml
+microk8s kubectl apply -f https://raw.githubusercontent.com/traefik/traefik/master/docs/content/reference/dynamic-configuration/kubernetes-crd-rbac.yml
+microk8s kubectl apply -f https://raw.githubusercontent.com/traefik/traefik-helm-chart/master/traefik/crds/traefik.io_ingressroutes.yaml
+microk8s kubectl apply -f https://raw.githubusercontent.com/traefik/traefik-helm-chart/master/traefik/crds/traefik.io_middlewares.yaml
+microk8s kubectl apply -f https://raw.githubusercontent.com/traefik/traefik-helm-chart/master/traefik/crds/traefik.io_serverstransports.yaml
+microk8s kubectl apply -f https://raw.githubusercontent.com/traefik/traefik-helm-chart/master/traefik/crds/traefik.io_tlsoptions.yaml
+microk8s kubectl apply -f https://raw.githubusercontent.com/traefik/traefik-helm-chart/master/traefik/crds/traefik.io_tlsstores.yaml
+microk8s kubectl apply -f https://raw.githubusercontent.com/traefik/traefik-helm-chart/master/traefik/crds/traefik.io_traefikservices.yaml
 ```
 
 <br>
@@ -65,11 +70,11 @@ microk8s helm3 upgrade traefik traefik/traefik -f values.yaml -n traefik
 # Check if everything is OK
 ```bash
 # Check if the pod in running correctly
-kubectl get pods -n traefik
+microk8s kubectl get pods -n traefik
 
 # Get Traefik service (listening IP is here)
-kubectl get svc -n traefik
+microk8s kubectl get svc -n traefik
 
 # Check Traefik logs
-kubectl -n traefik logs -f -l app.kubernetes.io/name=traefik
+microk8s kubectl -n traefik logs -f -l app.kubernetes.io/name=traefik
 ```
