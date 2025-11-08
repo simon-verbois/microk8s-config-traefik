@@ -1,184 +1,209 @@
 <p align="center">
-  <a href="https://github.com/simon-verbois/microk8s-config-traefik/graphs/traffic"><img src="https://api.visitorbadge.io/api/visitors?path=https%3A%2F%2Fgithub.com%2Fsimon-verbois%2Fmicrok8s-config-traefik&label=Visitors&countColor=26A65B&style=flat" alt="Visitor Count" height="28"/></a>
-  <a href="https://github.com/simon-verbois/microk8s-config-traefik/commits/main"><img src="https://img.shields.io/github/last-commit/simon-verbois/microk8s-config-traefik?style=flat" alt="GitHub Last Commit" height="28"/></a>
-  <a href="https://github.com/simon-verbois/microk8s-config-traefik/stargazers"><img src="https://img.shields.io/github/stars/simon-verbois/microk8s-config-traefik?style=flat&color=yellow" alt="GitHub Stars" height="28"/></a>
-  <a href="https://github.com/simon-verbois/microk8s-config-traefik/issues"><img src="https://img.shields.io/github/issues/simon-verbois/microk8s-config-traefik?style=flat&color=red" alt="GitHub Issues" height="28"/></a>
-  <a href="https://github.com/simon-verbois/microk8s-config-traefik/pulls"><img src="https://img.shields.io/github/issues-pr/simon-verbois/microk8s-config-traefik?style=flat&color=blue" alt="GitHub Pull Requests" height="28"/></a>
+  <a href="[https://github.com/simon-verbois/microk8s-config-traefik/graphs/traffic](https://github.com/simon-verbois/microk8s-config-traefik/graphs/traffic)"><img src="[https://api.visitorbadge.io/api/visitors?path=https%3A%2F%2Fgithub.com%2Fsimon-verbois%2Fmicrok8s-config-traefik&label=Visitors&countColor=26A65B&style=flat](https://api.visitorbadge.io/api/visitors?path=https%3A%2F%2Fgithub.com%2Fsimon-verbois%2Fmicrok8s-config-traefik&label=Visitors&countColor=26A65B&style=flat)" alt="Visitor Count" height="28"/></a>
+  <a href="[https://github.com/simon-verbois/microk8s-config-traefik/commits/main](https://github.com/simon-verbois/microk8s-config-traefik/commits/main)"><img src="[https://img.shields.io/github/last-commit/simon-verbois/microk8s-config-traefik?style=flat](https://img.shields.io/github/last-commit/simon-verbois/microk8s-config-traefik?style=flat)" alt="GitHub Last Commit" height="28"/></a>
+  <a href="[https://github.com/simon-verbois/microk8s-config-traefik/stargazers](https://github.com/simon-verbois/microk8s-config-traefik/stargazers)"><img src="[https://img.shields.io/github/stars/simon-verbois/microk8s-config-traefik?style=flat&color=yellow](https://img.shields.io/github/stars/simon-verbois/microk8s-config-traefik?style=flat&color=yellow)" alt="GitHub Stars" height="28"/></a>
+  <a href="[https://github.com/simon-verbois/microk8s-config-traefik/issues](https://github.com/simon-verbois/microk8s-config-traefik/issues)"><img src="[https://img.shields.io/github/issues/simon-verbois/microk8s-config-traefik?style=flat&color=red](https://img.shields.io/github/issues/simon-verbois/microk8s-config-traefik?style=flat&color=red)" alt="GitHub Issues" height="28"/></a>
+  <a href="[https://github.com/simon-verbois/microk8s-config-traefik/pulls](https://github.com/simon-verbois/microk8s-config-traefik/pulls)"><img src="[https://img.shields.io/github/issues-pr/simon-verbois/microk8s-config-traefik?style=flat&color=blue](https://img.shields.io/github/issues-pr/simon-verbois/microk8s-config-traefik?style=flat&color=blue)" alt="GitHub Pull Requests" height="28"/></a>
 </p>
 
-# Note
-- This implementation has been tested on RHEL 9
-- All this implementation has been done with a non root user (in microk8s group)
-- An ingress example is available, but there is not real testing in the repository for Traefik as you need a full app to test
-- You need a load balancer setup (MetalLB in my case)
+# Traefik with Coraza WAF on MicroK8s
 
-<br>
+This repository provides a comprehensive guide and configuration files for deploying **Traefik** on a **MicroK8s** cluster with advanced security features enabled.
 
-# Install Traefik OVH TLS Resolver
+This setup is designed to be robust and production-ready, focusing on:
+
+  * **Coraza WAF:** A powerful Web Application Firewall (WAF) integrated via the official Traefik WASM plugin, complete with a custom ruleset.
+  * **Security Headers:** A hardened middleware to apply OWASP-recommended security headers.
+  * **Rate Limiting:** A middleware to protect services from simple brute-force attacks.
+  * **ACME DNS-01 Challenge:** Automatic SSL/TLS certificate generation and renewal from Let's Encrypt using the OVH DNS-01 challenge.
+  * **HTTP to HTTPS:** Global redirection for all traffic.
+
+## 📋 Prerequisites
+
+Before you begin, ensure you have the following:
+
+  * A running MicroK8s cluster.
+  * The `microk8s` CLI tool installed and configured.
+  * An OVH domain name.
+  * OVH API credentials with the following permissions:
+      * `GET /domain/zone/*`
+      * `POST /domain/zone/*`
+      * `PUT /domain/zone/*`
+      * `DELETE /domain/zone/*`
+  * A Load Balancer solution for MicroK8s, such as **MetalLB**.
+
+> **Note:** This implementation has been tested on **RHEL 9** with a **non-root user** (who is part of the `microk8s` group).
+
+-----
+
+## 🚀 Installation Guide
+
+### Step 1: Prepare MicroK8s Cluster
+
+First, enable the required MicroK8s addons and create a namespace for Traefik.
+
 ```bash
-# Enable the modules
+# Enable Helm 3 (for installing Traefik) and MetalLB
 microk8s enable helm3 metallb
-## The LoadBalancer will ask for an IP Range
-## Add a range that's in your cluster subnet
 
-# Check all pods status
+# When prompted, provide an IP range for MetalLB
+# This range should be on your cluster's subnet.
+
+# Create the traefik namespace
 microk8s kubectl create namespace traefik
+```
 
-# Create a secret in the traefik namespace we just created
-# Create your API credentials here: [https://eu.api.ovh.com/createToken/](https://eu.api.ovh.com/createToken/)
-# GET /domain/zone/*
-# POST /domain/zone/*
-# PUT /domain/zone/*
-# DELETE /domain/zone/*
+### Step 2: Create OVH API Secret
+
+Create a Kubernetes secret in the `traefik` namespace to securely store your OVH API credentials. Traefik will use this secret to solve the DNS-01 challenge.
+
+Replace the `xxxxxxxx` placeholders with your actual credentials.
+
+```bash
 microk8s kubectl create secret generic ovh-credentials \
   --namespace=traefik \
   --from-literal=OVH_ENDPOINT=ovh-eu \
   --from-literal=OVH_APPLICATION_KEY=xxxxxxxxxxxxxxxxx \
   --from-literal=OVH_APPLICATION_SECRET=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx \
   --from-literal=OVH_CONSUMER_KEY=xxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+```
 
-## Add Traefik repository and update the cache
-microk8s helm3 repo add traefik [https://traefik.github.io/charts](https://traefik.github.io/charts) && microk8s helm3 repo update
+### Step 3: Install Traefik with Coraza WAF Plugin
 
-## Copy template, and customize it
-mv values.yaml.template values.yaml
+This repository's `values.yaml` is pre-configured to enable the Coraza WASM plugin, set up the OVH certificate resolver, and configure persistence.
 
-## Install Traefik
+```bash
+# Add the Traefik Helm repository and update
+microk8s helm3 repo add traefik https://traefik.github.io/charts
+microk8s helm3 repo update
+
+# Install Traefik using the provided values.yaml
+# This file automatically enables the Coraza plugin and CRDs
 microk8s helm3 install traefik traefik/traefik \
   --namespace=traefik \
   --create-namespace \
   -f values.yaml
+```
 
-## Add traefik CRD
-microk8s kubectl apply -f https://raw.githubusercontent.com/traefik/traefik-helm-chart/master/traefik/crds/traefik.io_ingressroutes.yaml
-microk8s kubectl apply -f https://raw.githubusercontent.com/traefik/traefik-helm-chart/master/traefik/crds/traefik.io_middlewares.yaml
-microk8s kubectl apply -f https://raw.githubusercontent.com/traefik/traefik-helm-chart/master/traefik/crds/traefik.io_serverstransports.yaml
-microk8s kubectl apply -f https://raw.githubusercontent.com/traefik/traefik-helm-chart/master/traefik/crds/traefik.io_tlsoptions.yaml
-microk8s kubectl apply -f https://raw.githubusercontent.com/traefik/traefik-helm-chart/master/traefik/crds/traefik.io_tlsstores.yaml
-microk8s kubectl apply -f https://raw.githubusercontent.com/traefik/traefik-helm-chart/master/traefik/crds/traefik.io_traefikservices.yaml
-````
+### Step 4: Apply Security Middlewares
 
-<br>
+The `security-middleware.yaml` file defines our reusable security policies. Apply it to the cluster.
 
-## Configuration Overview (values.yaml)
+```bash
+microk8s kubectl apply -f security-middleware.yaml
+```
 
-The `values.yaml` file configures the Traefik deployment. Here is a breakdown of the key sections:
+This file creates four crucial objects in the `traefik` namespace:
 
-  * `env` / `envFrom`: Sets the container's timezone to `Europe/Brussels` and injects the OVH API credentials from the `ovh-credentials` Kubernetes secret.
-  * `certificatesResolvers`: Defines the Let's Encrypt resolver named `ovhresolver`. It's configured to:
-      * Use `admin@verbois.ovh` as the ACME contact email.
-      * Store certificates in `/data/acme.json` (inside the persistent volume).
-      * Use the OVH DNS-01 challenge provider.
-  * `providers`: Enables both the modern `kubernetesCRD` (for `IngressRoute` objects) and the legacy `kubernetesIngress` (for standard `Ingress` objects).
-  * `additionalArguments`: Passes static configuration flags to the Traefik pod on startup.
-      * `--entrypoints.web.address=:8000`: The pod listens for HTTP on port 8000.
-      * `--entrypoints.websecure.address=:8443`: The pod listens for HTTPS on port 8443.
-      * `--entrypoints.web.http.redirections...`: Sets up a global redirect from HTTP (web) to HTTPS (websecure) on port 443.
-      * `--api.dashboard=false`: Disables the insecure Traefik dashboard.
-  * `entrypoints`: Configures properties on the entrypoints defined in `additionalArguments`.
-      * `websecure.http.compress: {}`: Enables default (Gzip) compression on all HTTPS traffic.
-      * `websecure.tls.sniStrict: true`: Enables Strict SNI, enhancing security by rejecting requests that do not specify a server name.
-  * `persistence`: Ensures certificate data (`acme.json`) is persistent.
-      * Creates a 1Gi Persistent Volume Claim using the `hostpath-sc` storage class, mounted at `/data`.
-  * `service`: Defines the Kubernetes `LoadBalancer` service that exposes Traefik.
-      * Maps the host's port **80** to the pod's port **8000** (`web`).
-      * Maps the host's port **443** to the pod's port **8443** (`websecure`).
-  * `deployment`: Sets the deployment strategy to `Recreate` (the old pod is killed before the new one is created).
+1.  **`coraza-waf` (Middleware):** Configures the WAF engine with a custom ruleset to block common attacks like SQLi, XSS, Path Traversal, and more.
+2.  **`security-headers` (Middleware):** Adds security headers like `Content-Security-Policy`, `Strict-Transport-Security`, and `X-Content-Type-Options`.
+3.  **`rate-limit` (Middleware):** Applies a rate limit of 100 requests per minute.
+4.  **`tls-profile` (TLSOption):** Enforces modern TLS 1.2+ with strong cipher suites.
 
-<br>
+### Step 5: Deploy & Expose a Test Application
 
-# Updating traefik and configuration
+The `whoami-waf-test.yaml` file provides a complete example of deploying an application (`whoami`) and securing it with an `IngressRoute` that uses all the middlewares we just created.
+
+**Before applying, edit `whoami-waf-test.yaml`** and change `waf-test.example.org` to your own domain (e.g., `<your-domain.com>`).
+
+```bash
+# Edit the file first!
+# nano whoami-waf-test.yaml
+
+# Deploy the test application and its secure IngressRoute
+microk8s kubectl apply -f whoami-waf-test.yaml
+```
+
+The `IngressRoute` in this file is the key:
+
+  * It listens on the `websecure` (HTTPS) entrypoint.
+  * It applies the three middlewares: `coraza-waf`, `security-headers`, and `rate-limit`.
+  * It uses the `ovhresolver` to automatically get a Let's Encrypt certificate.
+
+-----
+
+## 🛡️ Verify the Configuration & Test the WAF
+
+Wait a minute or two for the certificate to be issued.
+
+### 1. Check the Application & Headers
+
+First, check if the site is accessible and if the security headers are applied.
+
+```bash
+# Replace with your domain
+curl -I https://<your-domain.com>
+```
+
+You should see a `HTTP/1.1 200 OK` status and the headers we defined, such as:
+
+  * `content-security-policy: script-src 'self'`
+  * `strict-transport-security: max-age=31536000; includeSubDomains; preload`
+  * `x-content-type-options: nosniff`
+
+### 2. Test the WAF (Block Attacks)
+
+Now, try to send malicious payloads. The WAF should block them with a **`403 Forbidden`** response. The `curl -i` command will show you the HTTP response headers, so you can confirm the `403` status.
+
+```bash
+# --- TEST 1: Check for a normal 200 OK response (Baseline)
+# (This should NOT be blocked)
+curl -i https://<your-domain.com>/
+
+# --- TEST 2: SQL Injection (Rule 1001)
+# (This SHOULD be blocked with 403 Forbidden)
+curl -i "https://<your-domain.com>/?id=1%27%20OR%20%271%27=%271"
+
+# --- TEST 3: Cross-Site Scripting (XSS) (Rule 1002)
+# (This SHOULD be blocked with 403 Forbidden)
+curl -i "https://<your-domain.com>/?input=<script>alert(1)</script>"
+
+# --- TEST 4: Path Traversal (Rule 1003)
+# (This SHOULD be blocked with 403 Forbidden)
+curl -i "https://<your-domain.com>/?file=../../../../etc/passwd"
+
+# --- TEST 5: Blocked User-Agent (Rule 1004)
+# (This SHOULD be blocked with 403 Forbidden)
+curl -i -A "sqlmap/1.0" https://<your-domain.com>/
+```
+
+If you see `HTTP/1.1 403 Forbidden` for tests 2-5, your WAF is working correctly\!
+
+### 3. Check Logs
+
+To see the WAF in action, you can check the Traefik pod logs. Blocked requests will be logged.
+
+```bash
+# Follow the logs from the Traefik pod
+microk8s kubectl logs -n traefik -l app.kubernetes.io/name=traefik -f
+
+# Look for log entries containing "[Custom Rule]"
+```
+
+-----
+
+## 🔧 Management
+
+### Update Traefik Configuration
+
+If you make changes to `values.yaml`, upgrade your Traefik release:
 
 ```bash
 microk8s helm3 upgrade traefik traefik/traefik -f values.yaml -n traefik
 ```
 
-<br>
-
-# Check if everything is OK
+### Check Pods & Services
 
 ```bash
-# Check if the pod in running correctly
+# Check if the Traefik pod is running
 microk8s kubectl get pods -n traefik
 
-# Get Traefik service (listening IP is here)
+# Get Traefik service (the LoadBalancer IP is here)
 microk8s kubectl get svc -n traefik
-
-# Check Traefik logs
-microk8s kubectl -n traefik logs -f -l app.kubernetes.io/name=traefik
 ```
 
-<br>
+## 📁 File Overview
 
-# IngressRoute example
-
-This example shows how to configure an `IngressRoute` with OWASP-recommended security headers, a rate limit, and a modern TLS profile.
-
-```yaml
----
-apiVersion: traefik.io/v1alpha1
-kind: Middleware
-metadata:
-  name: example-security-headers
-  namespace: example # <-- Change to your app's namespace
-spec:
-  headers:
-    frameDeny: true
-    contentTypeNosniff: true
-    stsSeconds: 31536000
-    stsIncludeSubdomains: true
-    stsPreload: true
-    customResponseHeaders:
-      Content-Security-Policy: "script-src 'self'"
-      Referrer-Policy: "strict-origin-when-cross-origin"
-      Permissions-Policy: "camera=(), microphone=(), geolocation=(), payment=(), usb=()"
----
-apiVersion: traefik.io/v1alpha1
-kind: Middleware
-metadata:
-  name: example-ratelimit
-  namespace: example # <-- Change to your app's namespace
-spec:
-  rateLimit:
-    average: 100
-    period: "1m"
-    burst: 50
----
-apiVersion: traefik.io/v1alpha1
-kind: TLSOption
-metadata:
-  name: example-tls-profile
-  namespace: example # <-- Change to your app's namespace
-spec:
-  minVersion: VersionTLS12
-  cipherSuites:
-    - TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256
-    - TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384
-    - TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256
-    - TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384
-    - TLS_CHACHA20_POLY1305_SHA256
----
-apiVersion: traefik.io/v1alpha1
-kind: IngressRoute
-metadata:
-  name: example-ingressroute
-  namespace: example # <-- Change to your app's namespace
-spec:
-  entryPoints:
-    - websecure
-  routes:
-    - match: Host(`example.your-domain.com`) # <-- Change to your domain
-      kind: Rule
-      services:
-        - name: example-service # <-- Change to your app's service name
-          port: http # <-- Change to your app's service port name
-      middlewares:
-        - name: example-security-headers
-        - name: example-ratelimit
-  tls:
-    certResolver: ovhresolver # <-- Uses the resolver from values.yaml
-    domains:
-      - main: "example.your-domain.com" # <-- Change to your domain
-    options:
-      name: example-tls-profile # <-- Links to the TLSOption created above
-```
+  * **`values.yaml`**: The main Helm configuration for Traefik. It enables the Coraza plugin, configures the OVH ACME resolver, and sets up persistence.
+  * **`security-middleware.yaml`**: A collection of Kubernetes CRDs defining our reusable security policies (WAF, Headers, Rate Limit, TLS Profile).
+  * **`whoami-waf-test.yaml`**: A complete, self-contained example of a test application secured by an `IngressRoute` that uses all the security middlewares.

@@ -1,0 +1,148 @@
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: coraza-waf
+  namespace: traefik
+spec:
+  plugin:
+    coraza:
+      defaultRulesEnabled: false
+      directives:
+        - "SecRuleEngine On"
+        - "SecRequestBodyAccess On"
+        - "SecResponseBodyAccess Off"
+        # Log level 3 is good for debugging. 
+        # Set to 1 (Error) or 0 (Crit) for production.
+        - "SecDebugLogLevel 0" 
+        - "SecAuditEngine On"
+        - "SecAuditLog /dev/stdout"
+        
+        # --- BASE RULES (1001-1005) ---
+        - |
+          # 1001: Block basic SQL Injection (SQLi) patterns
+          SecRule ARGS|ARGS_NAMES|REQUEST_BODY "@rx (?i:(\bor\b\s*['\"]?\d|union.*select|select.*from|insert.*into|delete.*from|update.*set|' or |\" or ))" \
+          "id:1001,phase:2,deny,status:403,log,msg:'[Custom Rule] SQL Injection Attack Blocked'"
+        - |
+          # 1002: Block basic Cross-Site Scripting (XSS) payloads
+          SecRule ARGS|ARGS_NAMES|REQUEST_BODY "@rx (?i:<script|javascript:|onerror\s*=|onload\s*=|<iframe|eval\(|alert\()" \
+          "id:1002,phase:2,deny,status:403,log,msg:'[Custom Rule] XSS Attack Blocked'"
+        - |
+          # 1003: Block Path Traversal attempts (e.g., ../, /etc/)
+          SecRule REQUEST_URI|ARGS|REQUEST_BODY "@rx (?:\.\.\/|\.\.\\|\/etc\/|\\windows\\)" \
+          "id:1003,phase:1,deny,status:403,log,msg:'[Custom Rule] Path Traversal Attack Blocked'"
+        - |
+          # 1004: Block common security scanners by User-Agent
+          SecRule REQUEST_HEADERS:User-Agent "@rx (?i:sqlmap|nikto|nmap|dirbuster|burp|acunetix|metasploit|havij)" \
+          "id:1004,phase:1,deny,status:403,log,msg:'[Custom Rule] Security Scanner Detected and Blocked'"
+        - |
+          # 1005: Block basic Command Injection characters
+          SecRule ARGS|REQUEST_BODY "@rx (?i:;|\$\(|<\(|>\(|\|)" \
+          "id:1005,phase:2,deny,status:403,log,msg:'[Custom Rule] Command Injection Attempt Blocked'"
+        
+        # --- ADVANCED RULES (1006-1009) ---
+        - |
+          # 1006: Block Remote File Inclusion (RFI) loading external URLs in common params
+          SecRule ARGS_NAMES:/^(file|include|path|document|url|src)$/ "@rx ^(https?|ftp):\/\/" \
+          "id:1006,phase:2,deny,status:403,log,msg:'[Custom Rule] RFI Attempt Blocked'"
+        - |
+          # 1007: Block Server-Side Request Forgery (SSRF) targeting internal/metadata IPs
+          SecRule ARGS_NAMES:/^(url|uri|host|domain|redirect|dest)$/ "@rx (127\.0\.0\.1|localhost|169\.254\.169\.254)" \
+          "id:1007,phase:2,deny,status:403,log,msg:'[Custom Rule] SSRF Attempt Blocked (Metadata/Loopback)'"
+        - |
+          # 1008: Block common Log4Shell (JNDI) attack patterns
+          SecRule REQUEST_HEADERS|ARGS|ARGS_NAMES|REQUEST_BODY "@rx \$\{jndi:(ldap|rmi|dns)" \
+          "id:1008,phase:2,deny,status:403,log,msg:'[Custom Rule] Log4Shell (JNDI) Attack Blocked'"
+        - |
+          # 1009: Block unused/dangerous HTTP methods (TRACE, CONNECT)
+          SecRule REQUEST_METHOD "@rx ^(CONNECT|TRACE)$" \
+          "id:1009,phase:1,deny,status:403,log,msg:'[Custom Rule] Disallowed HTTP Method Blocked'"
+        
+        # --- HARDENING RULES (1010-1013) ---
+        - |
+          # 1010: Block requests missing a Host header (HTTP/1.0 or bad bots)
+          SecRule &REQUEST_HEADERS:Host "@eq 0" \
+          "id:1010,phase:1,deny,status:403,log,msg:'[Custom Rule] Missing/Empty Host Header'"
+        - |
+          # 1011: Block malicious characters in the Host header
+          SecRule REQUEST_HEADERS:Host "@rx [<>\"'(){}]" \
+          "id:1011,phase:1,deny,status:403,log,msg:'[Custom Rule] Malicious Characters in Host Header'"
+        - |
+          # 1012: Block access to sensitive files (e.g., .git, .env)
+          SecRule REQUEST_URI "@rx \/\.(git|svn|env|bak|config|yml|yaml)(\/|$)" \
+          "id:1012,phase:1,deny,status:403,log,msg:'[Custom Rule] Sensitive File Access Blocked'"
+        - |
+          # 1013: Block PHP-specific wrappers used for LFI/RFI
+          SecRule ARGS|ARGS_NAMES|REQUEST_BODY "@rx php:\/\/(input|filter|memory)" \
+          "id:1013,phase:2,deny,status:403,log,msg:'[Custom Rule] PHP Wrapper Attack Blocked'"
+
+        # --- EXPERT RULES (1014-1019) ---
+        - |
+          # 1014: Block HTTP Request Smuggling (ambiguous Content-Length & Transfer-Encoding)
+          SecRule &REQUEST_HEADERS:Content-Length "@gt 0" \
+          "id:1014,phase:1,deny,status:403,log,msg:'[Custom Rule] HTTP Request Smuggling Attempt Blocked',chain"
+            SecRule REQUEST_HEADERS:Transfer-Encoding "!@eq 0"
+        - |
+          # 1015: Block uploads of dangerous/executable file extensions
+          SecRule REQUEST_BODY "@rx (?i)filename\s*=\s*[\"']?.*?\.(php|exe|sh|pl|py|ps1|jsp|asp|bat|cmd)[\"']?" \
+          "id:1015,phase:2,deny,status:403,log,msg:'[Custom Rule] Dangerous File Upload Attempt Blocked'"
+        - |
+          # 1016: Block XML External Entity (XXE) attack patterns
+          SecRule REQUEST_BODY "@rx (?i)<!ENTITY\s+(SYSTEM|PUBLIC)" \
+          "id:1016,phase:2,deny,status:403,log,msg:'[Custom Rule] XXE Attack Attempt Blocked'"
+        - |
+          # 1017: Block common Server-Side Template Injection (SSTI) payloads
+          SecRule ARGS|ARGS_NAMES|REQUEST_BODY "@rx (\{\{.*?\}\}|#\{.*?\}|\*\{.*?\})" \
+          "id:1017,phase:2,deny,status:403,log,msg:'[Custom Rule] SSTI Attack Attempt Blocked'"
+        - |
+          # 1018: Block aggressive scrapers and "bad bots" by User-Agent
+          SecRule REQUEST_HEADERS:User-Agent "@rx (?i)(AhrefsBot|SemrushBot|MJ12bot|DotBot|PetalBot|Bytespider)" \
+          "id:1018,phase:1,deny,status:403,log,msg:'[Custom Rule] Aggressive Scraper/Bot Blocked'"
+        - |
+          # 1019: Block requests with multiple Content-Type headers
+          SecRule &REQUEST_HEADERS:Content-Type "@gt 1" \
+          "id:1019,phase:1,deny,status:403,log,msg:'[Custom Rule] Multiple Content-Type Headers Blocked'"   
+
+---
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: security-headers
+  namespace: traefik
+spec:
+  headers:
+    frameDeny: true
+    contentTypeNosniff: true
+    stsSeconds: 31536000
+    stsIncludeSubdomains: true
+    stsPreload: true
+    customResponseHeaders:
+      Content-Security-Policy: "script-src 'self'"
+      Referrer-Policy: "strict-origin-when-cross-origin"
+      Permissions-Policy: "camera=(), microphone=(), geolocation=(), payment=(), usb=()"
+  
+---
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: rate-limit
+  namespace: traefik
+spec:
+  rateLimit:
+    average: 100
+    period: 1m
+    burst: 50
+
+---
+apiVersion: traefik.io/v1alpha1
+kind: TLSOption
+metadata:
+  name: tls-profile
+  namespace: traefik
+spec:
+  minVersion: VersionTLS12
+  cipherSuites:
+    - TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256
+    - TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384
+    - TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256
+    - TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384
+    - TLS_CHACHA20_POLY1305_SHA256
