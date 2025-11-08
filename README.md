@@ -1,6 +1,9 @@
 <p align="center">
-  <img src="https://api.visitorbadge.io/api/visitors?path=https%3A%2F%2Fgithub.com%2Fsimon-verbois%2Fmicrok8s-config-traefik&label=Visitors&countColor=26A65B&style=plastic" alt="Visitor Count" height="28"/>
-  <a href="https://github.com/simon-verbois/microk8s-config-traefik/commits/main"><img src="https://img.shields.io/github/last-commit/simon-verbois/microk8s-config-traefik?style=plastic" alt="GitHub Last Commit" height="28"/></a>
+  <a href="https://github.com/simon-verbois/microk8s-config-traefik/graphs/traffic"><img src="https://api.visitorbadge.io/api/visitors?path=https%3A%2F%2Fgithub.com%2Fsimon-verbois%2FKomga-Meta-Manager&label=Visitors&countColor=26A65B&style=flat" alt="Visitor Count" height="28"/></a>
+  <a href="https://github.com/simon-verbois/microk8s-config-traefik/commits/main"><img src="https://img.shields.io/github/last-commit/simon-verbois/Komga-Meta-Manager?style=flat" alt="GitHub Last Commit" height="28"/></a>
+  <a href="https://github.com/simon-verbois/microk8s-config-traefik/stargazers"><img src="https://img.shields.io/github/stars/simon-verbois/Komga-Meta-Manager?style=flat&color=yellow" alt="GitHub Stars" height="28"/></a>
+  <a href="https://github.com/simon-verbois/microk8s-config-traefik/issues"><img src="https://img.shields.io/github/issues/simon-verbois/Komga-Meta-Manager?style=flat&color=red" alt="GitHub Issues" height="28"/></a>
+  <a href="https://github.com/simon-verbois/microk8s-config-traefik/pulls"><img src="https://img.shields.io/github/issues-pr/simon-verbois/Komga-Meta-Manager?style=flat&color=blue" alt="GitHub Pull Requests" height="28"/></a>
 </p>
 
 # Note
@@ -37,11 +40,14 @@ microk8s kubectl create secret generic ovh-credentials \
 ## Add Traefik repository and update the cache
 microk8s helm3 repo add traefik https://traefik.github.io/charts && microk8s helm3 repo update
 
+## Copy template, and customize it
+mv values.yaml.template values.yaml
+
 ## Install Traefik
 microk8s helm3 install traefik traefik/traefik \
   --namespace=traefik \
   --create-namespace \
-  -f traefik-values.yaml
+  -f values.yaml
 
 ## Add RBAC access for Traefik ingress
 kubectl apply -f https://raw.githubusercontent.com/traefik/traefik/master/docs/content/reference/dynamic-configuration/kubernetes-crd-rbac.yml
@@ -49,7 +55,7 @@ kubectl apply -f https://raw.githubusercontent.com/traefik/traefik/master/docs/c
 
 <br>
 
-# Updating
+# Updating traefik and configuration (based on values.yaml)
 ```bash
 microk8s helm3 upgrade traefik traefik/traefik -f values.yaml -n traefik
 ```
@@ -59,11 +65,11 @@ microk8s helm3 upgrade traefik traefik/traefik -f values.yaml -n traefik
 # Check if everything is OK
 ```bash
 # Check if the pod in running correctly
-kubectl get pods --namespace=traefik
+kubectl get pods -n traefik
 
 # Get Traefik service (listening IP is here)
-kubectl get svc --namespace=traefik
+kubectl get svc -n traefik
 
 # Check Traefik logs
-kubectl -n traefik logs -f deployments/traefik
+kubectl -n traefik logs -f -l app.kubernetes.io/name=traefik
 ```
