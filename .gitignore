@@ -1,1 +1,3 @@
 values.yaml
+security-middleware.yaml
+whoami-waf-test.yaml

@@ -1,0 +1,70 @@
+installCRDs: true
+
+env:
+  - name: TZ
+    value: Europe/Brussels
+
+envFrom:
+  - secretRef:
+      name: ovh-credentials
+
+certificatesResolvers:
+  ovhresolver:
+    acme:
+      email: "admin@verbois.ovh"
+      storage: "/data/acme.json"
+      dnsChallenge:
+        provider: "ovh"
+        propagation:
+          delayBeforeChecks: 30
+
+providers:
+  kubernetesCRD:
+    enabled: true
+    allowCrossNamespace: true
+  kubernetesIngress:
+    enabled: true
+
+# Plugin Coraza WASM Officiel
+experimental:
+  plugins:
+    coraza:
+      moduleName: github.com/jcchavezs/coraza-http-wasm-traefik
+      version: v0.3.0
+
+additionalArguments:
+  - "--entrypoints.web.address=:8000"
+  - "--entrypoints.web.http.redirections.entryPoint.to=:443"
+  - "--entrypoints.web.http.redirections.entryPoint.scheme=https"
+  - "--entrypoints.websecure.address=:8443"
+  - "--entrypoints.websecure.http.tls=true"
+  - "--api.dashboard=false"
+  - "--experimental.plugins.coraza.moduleName=github.com/jcchavezs/coraza-http-wasm-traefik"
+  - "--experimental.plugins.coraza.version=v0.3.0"
+
+entrypoints:
+  websecure:
+    http:
+      compress: {}
+    tls:
+      sniStrict: true
+
+persistence:
+  enabled: true
+  path: /data
+  size: 1Gi
+  storageClass: hostpath-sc
+
+service:
+  type: LoadBalancer
+  ports:
+    web:
+      port: 80
+      targetPort: 8000
+    websecure:
+      port: 443
+      targetPort: 8443
+
+deployment:
+  strategy:
+    type: Recreate

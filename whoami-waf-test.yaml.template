@@ -43,7 +43,7 @@ spec:
   entryPoints:
     - websecure
   routes:
-    - match: Host(`waf-test.verbois.ovh`)
+    - match: Host(`waf-test.example.org`)
       kind: Rule
       middlewares:
         - name: traefik-security-headers@kubernetescrd
