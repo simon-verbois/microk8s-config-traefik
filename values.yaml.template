@@ -11,7 +11,7 @@ envFrom:
 certificatesResolvers:
   ovhresolver:
     acme:
-      email: "admin@verbois.ovh"
+      email: "admin@example.org" # Add your own admin mail
       storage: "/data/acme.json"
       dnsChallenge:
         provider: "ovh"
@@ -25,7 +25,6 @@ providers:
   kubernetesIngress:
     enabled: true
 
-# Plugin Coraza WASM Officiel
 experimental:
   plugins:
     coraza:
@@ -53,7 +52,7 @@ persistence:
   enabled: true
   path: /data
   size: 1Gi
-  storageClass: hostpath-sc
+  storageClass: hostpath-sc # Add your own storageClass name
 
 service:
   type: LoadBalancer

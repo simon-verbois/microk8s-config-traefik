@@ -46,11 +46,19 @@ spec:
     - match: Host(`waf-test.example.org`)
       kind: Rule
       middlewares:
-        - name: traefik-security-headers@kubernetescrd
-        - name: traefik-rate-limit@kubernetescrd
-        - name: traefik-coraza-waf@kubernetescrd
+        - name: coraza-waf
+          namespace: traefik
+        - name: security-headers
+          namespace: traefik
+        - name: rate-limit
+          namespace: traefik
       services:
         - name: whoami-waf
           port: 80
   tls:
     certResolver: ovhresolver
+    domains:
+      - main: "waf-test.example.org"
+    options:
+      name: tls-profile
+      namespace: traefik
