@@ -6,7 +6,7 @@ installCRDs: true
 
 env:
   - name: TZ
-    value: Europe/Brussels
+    value: Europe/Brussels # Add your own TZ
 
 envFrom:
   - secretRef:
