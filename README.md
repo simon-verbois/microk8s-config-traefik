@@ -14,6 +14,7 @@ This setup is designed to be robust and production-ready, focusing on:
 
   * **Coraza WAF:** A powerful Web Application Firewall (WAF) integrated via the official Traefik WASM plugin, complete with a custom ruleset.
   * **Security Headers:** A hardened middleware to apply OWASP-recommended security headers.
+  * **Geo Blocking:** A geoblock plugin to whitelist/blacklist countries.
   * **Rate Limiting:** A middleware to protect services from simple brute-force attacks.
   * **ACME DNS-01 Challenge:** Automatic SSL/TLS certificate generation and renewal from Let's Encrypt using the OVH DNS-01 challenge.
   * **HTTP to HTTPS:** Global redirection for all traffic.
