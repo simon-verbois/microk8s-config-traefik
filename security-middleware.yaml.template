@@ -8,24 +8,45 @@ spec:
   plugin:
     coraza:
       directives:
-        - SecRuleEngine On
+        - SecRuleEngine on
         - SecDebugLog /dev/stdout
-        - SecDebugLogLevel 3
-        - SecDefaultAction "phase:1,log,deny,status:403"
-        - SecDefaultAction "phase:2,log,deny,status:403"
-        - SecRule ARGS "@detectSQLi" "id:1001,phase:2,t:urlDecode,log,msg:'SQL Injection detected'"
-        - SecRule REQUEST_BODY "@detectSQLi" "id:1002,phase:2,t:urlDecode,log,msg:'SQL Injection in body'"
-        - SecRule ARGS "@detectXSS" "id:1010,phase:2,t:urlDecode,log,msg:'XSS detected'"
-        - SecRule REQUEST_BODY "@detectXSS" "id:1011,phase:2,t:urlDecode,log,msg:'XSS in body'"
-        - SecRule REQUEST_URI "@contains ../" "id:1020,phase:1,t:urlDecode,t:normalizePath,log,msg:'Path Traversal'"
-        - SecRule ARGS "@contains ../" "id:1021,phase:1,t:urlDecode,t:normalizePath,log,msg:'Path Traversal args'"
-        - SecRule REQUEST_URI "@contains .env" "id:1030,phase:1,t:lowercase,log,msg:'Access .env'"
-        - SecRule REQUEST_URI "@contains .git" "id:1031,phase:1,t:lowercase,log,msg:'Access .git'"
-        - SecRule REQUEST_URI "@contains wp-admin" "id:1032,phase:1,t:lowercase,log,msg:'Access wp-admin'"
-        - SecRule REQUEST_HEADERS:User-Agent "@contains sqlmap" "id:1040,phase:1,t:lowercase,log,msg:'Scanner sqlmap'"
-        - SecRule REQUEST_HEADERS:User-Agent "@contains nikto" "id:1041,phase:1,t:lowercase,log,msg:'Scanner nikto'"
-        - SecRule REQUEST_HEADERS:User-Agent "@contains nmap" "id:1042,phase:1,t:lowercase,log,msg:'Scanner nmap'"
+        - SecDebugLogLevel 0
+        - SecDefaultAction "phase:1,log,pass"
+        - SecDefaultAction "phase:2,log,pass"
+        # SQL/XSS
+        - SecRule ARGS "@detectSQLi" "id:1001,phase:2,t:urlDecode,log,deny,msg:'SQL Injection detected'"
+        - SecRule REQUEST_BODY "@detectSQLi" "id:1002,phase:2,t:urlDecode,log,deny,msg:'SQL Injection in body'"
+        - SecRule ARGS "@detectXSS" "id:1010,phase:2,t:urlDecode,log,deny,msg:'XSS detected'"
+        - SecRule REQUEST_BODY "@detectXSS" "id:1011,phase:2,t:urlDecode,log,deny,msg:'XSS in body'"
+        # Path Traversal
+        - SecRule REQUEST_URI "@contains ../" "id:1020,phase:1,t:urlDecode,t:normalizePath,deny,status:403,msg:'Path Traversal'"
+        # Scanners
+        - SecRule REQUEST_HEADERS:User-Agent "@contains sqlmap" "id:1040,phase:1,t:lowercase,deny,status:403,msg:'Scanner sqlmap'"
+        - SecRule REQUEST_HEADERS:User-Agent "@contains nikto" "id:1041,phase:1,t:lowercase,deny,status:403,msg:'Scanner nikto'"
 
+---
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: geoblock
+  namespace: traefik
+spec:
+  plugin:
+    geoblock: 
+      api: "https://get.geojs.io/v1/ip/country/{ip}"
+      apiTimeoutMs: 750
+      cacheSize: 15
+      allowLocalRequests: true
+      logAllowedRequests: false
+      logApiRequests: false
+      allowUnknownCountries: false
+      logFilePath: "/dev/stdout"
+      blackListMode: false
+      countries:
+        - "BE"
+        - "FR"
+        - "LU"
+  
 ---
 apiVersion: traefik.io/v1alpha1
 kind: Middleware
@@ -34,16 +55,14 @@ metadata:
   namespace: traefik
 spec:
   headers:
-    frameDeny: true
     contentTypeNosniff: true
+    browserXssFilter: true
     stsSeconds: 31536000
     stsIncludeSubdomains: true
-    stsPreload: true
     customResponseHeaders:
-      Content-Security-Policy: "script-src 'self'"
       Referrer-Policy: "strict-origin-when-cross-origin"
-      Permissions-Policy: "camera=(), microphone=(), geolocation=(), payment=(), usb=()"
-  
+      X-Content-Type-Options: "nosniff"
+
 ---
 apiVersion: traefik.io/v1alpha1
 kind: Middleware

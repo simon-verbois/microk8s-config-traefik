@@ -1,7 +1,6 @@
 # Default values
 # https://github.com/traefik/traefik-helm-chart/blob/master/traefik/values.yaml
 
-
 installCRDs: true
 
 env:
@@ -34,6 +33,9 @@ experimental:
     coraza:
       moduleName: github.com/jcchavezs/coraza-http-wasm-traefik
       version: v0.3.0
+    geoblock:
+      moduleName: github.com/PascalMinder/geoblock
+      version: v0.3.3
 
 entryPoints:
   web:
@@ -49,6 +51,13 @@ entryPoints:
       compress: {}
     tls:
       sniStrict: true
+      
+api:
+  dashboard: false
+
+additionalArguments:
+  - "--entrypoints.web.proxyProtocol.insecure=true"
+  - "--entrypoints.websecure.proxyProtocol.insecure=true"
 
 persistence:
   enabled: true
@@ -56,8 +65,17 @@ persistence:
   size: 1Gi
   storageClass: hostpath-sc # Add your own storageClass name
 
+logs:
+  general:
+    level: INFO
+  access:
+    enabled: false
+    
 service:
   type: LoadBalancer
+  externalTrafficPolicy: Local
+  annotations:
+    service.beta.kubernetes.io/metallb-loadbalancer-proxy-protocol: "*"
   ports:
     web:
       port: 80

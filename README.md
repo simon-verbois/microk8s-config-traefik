@@ -89,22 +89,25 @@ microk8s helm3 install traefik traefik/traefik \
 
 The `security-middleware.yaml` file defines our reusable security policies. Apply it to the cluster.
 
+⚠️ <b>Edit the geoblock middleware to add you own country in the allow list.</b>
+
 ```bash
 microk8s kubectl apply -f security-middleware.yaml
 ```
 
-This file creates four crucial objects in the `traefik` namespace:
+This file creates five crucial objects in the `traefik` namespace:
 
 1.  **`coraza-waf` (Middleware):** Configures the WAF engine with a custom ruleset to block common attacks like SQLi, XSS, Path Traversal, and more.
 2.  **`security-headers` (Middleware):** Adds security headers like `Content-Security-Policy`, `Strict-Transport-Security`, and `X-Content-Type-Options`.
 3.  **`rate-limit` (Middleware):** Applies a rate limit of 100 requests per minute.
-4.  **`tls-profile` (TLSOption):** Enforces modern TLS 1.2+ with strong cipher suites.
+4.  **`geoblock` (Middleware):** Applies a geo blocking filter to the request.
+5.  **`tls-profile` (TLSOption):** Enforces modern TLS 1.2+ with strong cipher suites.
 
 ### Step 5: Deploy & Expose a Test Application
 
 The `whoami-waf-test.yaml` file provides a complete example of deploying an application (`whoami`) and securing it with an `IngressRoute` that uses all the middlewares we just created.
 
-**Before applying, edit `whoami-waf-test.yaml`** and change `waf-test.example.org` to your own domain (e.g., `<your-domain.com>`).
+**Before applying, edit `whoami-waf-test.yaml`** and change `waf-test.example.org` to your own domain.
 
 ```bash
 # Edit the file first!
@@ -132,7 +135,7 @@ First, check if the site is accessible and if the security headers are applied.
 
 ```bash
 # Replace with your domain
-curl -I https://<your-domain.com>
+curl -I https://waf-test.example.org
 ```
 
 You should see a `HTTP/1.1 200 OK` status and the headers we defined, such as:
@@ -148,26 +151,20 @@ Now, try to send malicious payloads. The WAF should block them with a **`403 For
 ```bash
 # --- TEST 1: Check for a normal 200 OK response (Baseline)
 # (This should NOT be blocked)
-curl -i https://<your-domain.com>/
+curl -i https://waf-test.example.org/
 
 # --- TEST 2: SQL Injection (Rule 1001)
 # (This SHOULD be blocked with 403 Forbidden)
-curl -i "https://<your-domain.com>/?id=1%27%20OR%20%271%27=%271"
+curl -i "https://waf-test.example.org/?id=1%27%20OR%20%271%27=%271"
 
 # --- TEST 3: Cross-Site Scripting (XSS) (Rule 1002)
 # (This SHOULD be blocked with 403 Forbidden)
-curl -i "https://<your-domain.com>/?input=<script>alert(1)</script>"
+curl -i "https://waf-test.example.org/?input=<script>alert(1)</script>"
 
-# --- TEST 4: Path Traversal (Rule 1003)
+# --- TEST 4: Blocked User-Agent (Rule 1004)
 # (This SHOULD be blocked with 403 Forbidden)
-curl -i "https://<your-domain.com>/?file=../../../../etc/passwd"
-
-# --- TEST 5: Blocked User-Agent (Rule 1004)
-# (This SHOULD be blocked with 403 Forbidden)
-curl -i -A "sqlmap/1.0" https://<your-domain.com>/
+curl -i -A "sqlmap/1.0" https://waf-test.example.org/
 ```
-
-If you see `HTTP/1.1 403 Forbidden` for tests 2-5, your WAF is working correctly\!
 
 ### 3. Check Logs
 
@@ -175,9 +172,7 @@ To see the WAF in action, you can check the Traefik pod logs. Blocked requests w
 
 ```bash
 # Follow the logs from the Traefik pod
-microk8s kubectl logs -n traefik -l app.kubernetes.io/name=traefik -f
-
-# Look for log entries containing "[Custom Rule]"
+microk8s kubectl -n traefik logs -f deployment/traefik
 ```
 
 -----
@@ -205,5 +200,5 @@ microk8s kubectl get svc -n traefik
 ## 📁 File Overview
 
   * **`values.yaml`**: The main Helm configuration for Traefik. It enables the Coraza plugin, configures the OVH ACME resolver, and sets up persistence.
-  * **`security-middleware.yaml`**: A collection of Kubernetes CRDs defining our reusable security policies (WAF, Headers, Rate Limit, TLS Profile).
+  * **`security-middleware.yaml`**: A collection of Kubernetes CRDs defining our reusable security policies (WAF, Headers, Rate Limit, GeoBlock, TLS Profile).
   * **`whoami-waf-test.yaml`**: A complete, self-contained example of a test application secured by an `IngressRoute` that uses all the security middlewares.

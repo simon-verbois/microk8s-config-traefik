@@ -52,6 +52,8 @@ spec:
           namespace: traefik
         - name: rate-limit
           namespace: traefik
+        - name: geoblock
+          namespace: traefik
       services:
         - name: whoami-waf
           port: 80
