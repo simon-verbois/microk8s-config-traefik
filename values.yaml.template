@@ -1,3 +1,7 @@
+# Default values
+# https://github.com/traefik/traefik-helm-chart/blob/master/traefik/values.yaml
+
+
 installCRDs: true
 
 env:
@@ -11,7 +15,7 @@ envFrom:
 certificatesResolvers:
   ovhresolver:
     acme:
-      email: "admin@example.org" # Add your own admin mail
+      email: "admin@example.org" # Add you own admin mail
       storage: "/data/acme.json"
       dnsChallenge:
         provider: "ovh"
@@ -31,18 +35,16 @@ experimental:
       moduleName: github.com/jcchavezs/coraza-http-wasm-traefik
       version: v0.3.0
 
-additionalArguments:
-  - "--entrypoints.web.address=:8000"
-  - "--entrypoints.web.http.redirections.entryPoint.to=:443"
-  - "--entrypoints.web.http.redirections.entryPoint.scheme=https"
-  - "--entrypoints.websecure.address=:8443"
-  - "--entrypoints.websecure.http.tls=true"
-  - "--api.dashboard=false"
-  - "--experimental.plugins.coraza.moduleName=github.com/jcchavezs/coraza-http-wasm-traefik"
-  - "--experimental.plugins.coraza.version=v0.3.0"
-
-entrypoints:
+entryPoints:
+  web:
+    address: ":8000"
+    http:
+      redirections:
+        entryPoint:
+          to: websecure
+          scheme: https
   websecure:
+    address: ":8443"
     http:
       compress: {}
     tls:
