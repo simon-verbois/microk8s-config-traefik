@@ -28,6 +28,17 @@ spec:
 apiVersion: traefik.io/v1alpha1
 kind: Middleware
 metadata:
+  name: whitelist
+  namespace: traefik 
+spec:
+  ipWhiteList:
+    sourceRange:
+      - "your-public-ip/32"
+
+---
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
   name: geoblock
   namespace: traefik
 spec:
