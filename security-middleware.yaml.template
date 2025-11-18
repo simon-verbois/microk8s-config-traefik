@@ -31,7 +31,7 @@ metadata:
   name: whitelist
   namespace: traefik 
 spec:
-  ipWhiteList:
+  ipAllowList:
     sourceRange:
       - "your-public-ip/32"
 
