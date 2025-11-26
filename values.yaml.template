@@ -1,11 +1,11 @@
-# Default values
+# Default values overwritten
 # https://github.com/traefik/traefik-helm-chart/blob/master/traefik/values.yaml
 
 installCRDs: true
 
 env:
   - name: TZ
-    value: Europe/Brussels # Add your own TZ
+    value: Europe/Brussels # Add your own timezone
 
 envFrom:
   - secretRef:
@@ -28,15 +28,6 @@ providers:
   kubernetesIngress:
     enabled: true
 
-experimental:
-  plugins:
-    coraza:
-      moduleName: github.com/jcchavezs/coraza-http-wasm-traefik
-      version: v0.3.0
-    geoblock:
-      moduleName: github.com/PascalMinder/geoblock
-      version: v0.3.3
-
 entryPoints:
   web:
     address: ":8000"
@@ -58,6 +49,16 @@ api:
 additionalArguments:
   - "--entrypoints.web.proxyProtocol.insecure=true"
   - "--entrypoints.websecure.proxyProtocol.insecure=true"
+  - "--experimental.localPlugins.coraza.moduleName=github.com/jcchavezs/coraza-http-wasm-traefik"
+  - "--experimental.localPlugins.geoblock.moduleName=github.com/PascalMinder/geoblock"
+
+volumes: []
+
+additionalVolumeMounts:
+  - name: plugin-coraza-local
+    mountPath: /plugins-local/src/github.com/jcchavezs/coraza-http-wasm-traefik/
+  - name: plugin-geoblock-local
+    mountPath: /plugins-local/src/github.com/PascalMinder/geoblock/
 
 persistence:
   enabled: true
@@ -87,3 +88,13 @@ service:
 deployment:
   strategy:
     type: Recreate
+    
+  additionalVolumes:
+    - name: plugin-coraza-local
+      hostPath:
+        path: /data/md0/microk8s-config/microk8s-config-traefik/src/github.com/jcchavezs/coraza-http-wasm-traefik/
+        type: Directory
+    - name: plugin-geoblock-local
+      hostPath:
+        path: /data/md0/microk8s-config/microk8s-config-traefik/src/github.com/PascalMinder/geoblock/
+        type: Directory
