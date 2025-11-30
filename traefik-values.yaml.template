@@ -70,7 +70,14 @@ logs:
   general:
     level: ERROR
   access:
-    enabled: false
+    enabled: true
+    format: json
+    fields:
+      headers:
+        defaultmode: keep
+        names:
+          User-Agent: keep
+          X-Forwarded-For: keep
     
 service:
   type: LoadBalancer
