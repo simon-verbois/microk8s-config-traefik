@@ -2,27 +2,31 @@
 apiVersion: traefik.io/v1alpha1
 kind: Middleware
 metadata:
-  name: coraza-waf
+  name: rate-limit
+  namespace: traefik
+spec:
+  rateLimit:
+    average: 200
+    burst: 150
+    sourceCriterion:
+      requestHeaderName: "X-Forwarded-For"
+
+---
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: crowdsec-bouncer
   namespace: traefik
 spec:
   plugin:
-    coraza:
-      directives:
-        - SecRuleEngine on
-        - SecDebugLog /dev/stdout
-        - SecDebugLogLevel 0
-        - SecDefaultAction "phase:1,log,pass"
-        - SecDefaultAction "phase:2,log,pass"
-        # SQL/XSS
-        - SecRule ARGS "@detectSQLi" "id:1001,phase:2,t:urlDecode,log,deny,msg:'SQL Injection detected'"
-        - SecRule REQUEST_BODY "@detectSQLi" "id:1002,phase:2,t:urlDecode,log,deny,msg:'SQL Injection in body'"
-        - SecRule ARGS "@detectXSS" "id:1010,phase:2,t:urlDecode,log,deny,msg:'XSS detected'"
-        - SecRule REQUEST_BODY "@detectXSS" "id:1011,phase:2,t:urlDecode,log,deny,msg:'XSS in body'"
-        # Path Traversal
-        - SecRule REQUEST_URI "@contains ../" "id:1020,phase:1,t:urlDecode,t:normalizePath,deny,status:403,msg:'Path Traversal'"
-        # Scanners
-        - SecRule REQUEST_HEADERS:User-Agent "@contains sqlmap" "id:1040,phase:1,t:lowercase,deny,status:403,msg:'Scanner sqlmap'"
-        - SecRule REQUEST_HEADERS:User-Agent "@contains nikto" "id:1041,phase:1,t:lowercase,deny,status:403,msg:'Scanner nikto'"
+    crowdsec:
+      enabled: true
+      crowdsecLapiScheme: http
+      crowdsecLapiHost: crowdsec-service.crowdsec.svc.cluster.local:8080
+      crowdsecLapiKey: "XXXXXXXXXXXXXXXXXXXXXXXXXXX" # Add the generate LAPI key here
+      crowdsecMode: stream
+      updateIntervalSeconds: 60
+      forwardIfClientOrLapiError: true
 
 ---
 apiVersion: traefik.io/v1alpha1
@@ -33,7 +37,7 @@ metadata:
 spec:
   ipAllowList:
     sourceRange:
-      - "your-public-ip/32"
+      - "0.0.0.0/32" # Add your own public allowed IPs
 
 ---
 apiVersion: traefik.io/v1alpha1
@@ -45,15 +49,18 @@ spec:
   plugin:
     geoblock: 
       api: "https://get.geojs.io/v1/ip/country/{ip}"
-      apiTimeoutMs: 750
-      cacheSize: 15
+      apiTimeoutMs: 1500
+      cacheSize: 500
       allowLocalRequests: true
+      logLocalRequests: false
       logAllowedRequests: false
       logApiRequests: false
+      silentStartUp: true
       allowUnknownCountries: false
-      logFilePath: "/dev/stdout"
+      unknownCountryApiResponse: "nil"
+      forceMonthlyUpdate: true
       blackListMode: false
-      countries:
+      countries:  # Define the countries you want to allow, or blacklist depending on the previous setting
         - "BE"
         - "FR"
         - "LU"

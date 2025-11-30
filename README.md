@@ -6,13 +6,13 @@
   <a href="https://github.com/simon-verbois/microk8s-config-traefik/pulls"><img src="https://img.shields.io/github/issues-pr/simon-verbois/microk8s-config-traefik?style=flat&color=blue" alt="GitHub Pull Requests" height="28"/></a>
 </p>
 
-# Traefik with Coraza WAF on MicroK8s
+# Traefik on MicroK8s
 
-Production-ready Traefik setup on MicroK8s featuring Coraza WAF, Geoblocking, Security Headers, and Let's Encrypt automation via OVH.
+Production-ready Traefik setup on MicroK8s featuring Crowdsec, Geoblocking, Security Headers, Rate limiting, and Let's Encrypt automation via OVH.
 
 **Features:**
 
-  * **WAF:** Coraza with custom ruleset (SQLi, XSS, Scanners).
+  * **Crowdsec:** Blocking IP based on suspicious content.
   * **Access Control:** Geo-blocking and IP whitelisting.
   * **Hardening:** OWASP security headers and modern TLS profile.
   * **Automation:** ACME DNS-01 challenge (OVH) and HTTP-to-HTTPS redirect.
@@ -22,25 +22,24 @@ Production-ready Traefik setup on MicroK8s featuring Coraza WAF, Geoblocking, Se
   * **Cluster:** MicroK8s installed and running.
   * **Network:** MetalLB enabled (LoadBalancer).
   * **Provider:** OVH domain and API credentials (`GET/POST/PUT/DELETE` on `/domain/zone/*`).
-  * **System:** Non-root user in `microk8s` group.
+  * **System:** Non-root user in `microk8s` group, or other authentification method.
 
-## Installation
+### Cluster Preparation
 
-### 1\. Cluster Preparation
-
-Enable required addons and create the namespace.
+Enable required addons.
 
 ```bash
 microk8s enable helm3 metallb
-microk8s kubectl create namespace traefik
 ```
 
-### 2\. Credentials & Plugins
+## Installation
+
+### 1. Credentials & Plugins
 
 Create the OVH secret (replace placeholders) and download the required WAF/GeoBlock plugins locally.
 
 ```bash
-# 1. Create Secret
+# Create Secret for OVH resolver
 microk8s kubectl create secret generic ovh-credentials \
   --namespace=traefik \
   --from-literal=OVH_ENDPOINT=ovh-eu \
@@ -48,74 +47,82 @@ microk8s kubectl create secret generic ovh-credentials \
   --from-literal=OVH_APPLICATION_SECRET=CHANGE_ME \
   --from-literal=OVH_CONSUMER_KEY=CHANGE_ME
 
-# 2. Download Plugins
-mkdir -p ./src/github.com/jcchavezs/coraza-http-wasm-traefik
-mkdir -p ./src/github.com/PascalMinder/geoblock
+# Install plugins from local source
+mkdir -p ./src/github.com/maxlerebourg
+mkdir -p ./src/github.com/PascalMinder
 
-cd ./src/github.com/jcchavezs/coraza-http-wasm-traefik
-wget https://github.com/jcchavezs/coraza-http-wasm-traefik/releases/download/v0.3.0/coraza-http-wasm-v0.3.0.zip
-unzip coraza-http-wasm-v0.3.0.zip && rm coraza-http-wasm-v0.3.0.zip
+cd ./src/github.com/maxlerebourg
+wget https://github.com/maxlerebourg/crowdsec-bouncer-traefik-plugin/archive/refs/tags/v1.4.6.zip # Add a more recent version if there is one
+unzip v1.4.6.zip && rm -f v1.4.6.zip && mv crowdsec-bouncer-traefik-plugin-* crowdsec-bouncer-traefik-plugin
 
-cd ../../PascalMinder/geoblock
-wget https://github.com/PascalMinder/geoblock/archive/refs/tags/v0.3.3.zip
-unzip v0.3.3.zip && rm v0.3.3.zip && mv geoblock-*/* . && rmdir geoblock-*
+cd ../../PascalMinder
+wget https://github.com/PascalMinder/geoblock/archive/refs/tags/v0.3.3.zip # Add a more recent version if there is one
+unzip v0.3.3.zip && rm -f v0.3.3.zip && mv geoblock-* geoblock
 
-cd ../../../..
+cd ../../..
 sudo chown -R 65532:65532 ./src
 ```
 
-### 3\. Deploy Traefik
-
-Install Traefik using the provided Helm values.
+### 2. Deploy crowdsec
 
 ```bash
-microk8s helm3 repo add traefik https://traefik.github.io/charts
+# Add repository and update cache
+microk8s helm3 repo add crowdsec https://crowdsecurity.github.io/helm-charts
 microk8s helm3 repo update
-microk8s helm3 install traefik traefik/traefik -n traefik --create-namespace -f values.yaml
+
+# Create Crowdsec namespace
+microk8s kubectl create ns crowdsec
+
+# Edit the values, then install it
+microk8s helm3 install crowdsec crowdsec/crowdsec \
+  -f crowdsec-values.yaml \
+  -n crowdsec
+
+# Wait for the pods to be running
+microk8s kubectl get pods -n crowdsec -w
+
+# Generate a LAPI key
+microk8s kubectl exec -it -n crowdsec <lapi-pod-name> -- /bin/bash
+> cscli bouncers add traefik-bouncer
 ```
 
-### 4\. Apply Security Policies
+### 3. Apply Security Middlewares
 
-Deploy the middlewares (WAF, GeoBlock, Headers, Whitelist) and TLS options.
-*Edit `security-middleware.yaml` to customize allowed countries and IPs before applying.*
+Deploy the middlewares (Crowdsec, GeoBlock, Headers, Whitelist, Rate limit, etc.) and TLS options.
+*Edit `security-middleware.yaml` to customize allowed countries, LAPI key and IPs before applying.*
 
 ```bash
 microk8s kubectl apply -f security-middleware.yaml
 ```
 
-### 5\. Validation
+### 4. Deploy Traefik
 
-Deploy the test application (`whoami`) secured by the WAF.
-*Edit `whoami-waf-test.yaml` with your domain before applying.*
-
-```bash
-microk8s kubectl apply -f whoami-waf-test.yaml
-```
-
-## Testing & Verification
-
-Wait for the certificate generation, then verify the protection.
+Install Traefik using the provided Helm values.
 
 ```bash
-# 1. Check Security Headers (Should return 200 OK)
-curl -I https://waf-test.example.org
+# Add repository and update cache
+microk8s helm3 repo add traefik https://traefik.github.io/charts
+microk8s helm3 repo update
 
-# 2. Test WAF - SQL Injection (Should return 403 Forbidden)
-curl -I "https://waf-test.example.org/?id=1%27%20OR%20%271%27=%271"
+# Create Crowdsec namespace
+microk8s kubectl create ns traefik
 
-# 3. Test WAF - XSS (Should return 403 Forbidden)
-curl -I "https://waf-test.example.org/?input=<script>alert(1)</script>"
-
-# 4. Test WAF - User Agent (Should return 403 Forbidden)
-curl -I -A "sqlmap/1.0" https://waf-test.example.org/
+# Edit the values, then install it
+microk8s helm3 install traefik traefik/traefik -n traefik --create-namespace -f traefik-values.yaml
 ```
+
 
 ## Management
 
-**Upgrade Configuration:**
+**Update/Upgrade Configuration (and helm deployment):**
 
 ```bash
-microk8s helm3 upgrade traefik traefik/traefik -f values.yaml -n traefik
+# Update helm, then ensure the pod is restarted
+microk8s helm3 upgrade traefik traefik/traefik -f traefik-values.yaml -n traefik
+kubectl -n traefik rollout restart deployment traefik
+
+# Follow the restart
+kubectl -n traefik get pods -w
 ```
 
 **Debug Logs:**

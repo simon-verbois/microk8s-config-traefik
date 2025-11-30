@@ -49,14 +49,14 @@ api:
 additionalArguments:
   - "--entrypoints.web.proxyProtocol.insecure=true"
   - "--entrypoints.websecure.proxyProtocol.insecure=true"
-  - "--experimental.localPlugins.coraza.moduleName=github.com/jcchavezs/coraza-http-wasm-traefik"
+  - "--experimental.localPlugins.coraza.moduleName=github.com/maxlerebourg/crowdsec-bouncer-traefik-plugin"
   - "--experimental.localPlugins.geoblock.moduleName=github.com/PascalMinder/geoblock"
 
 volumes: []
 
 additionalVolumeMounts:
-  - name: plugin-coraza-local
-    mountPath: /plugins-local/src/github.com/jcchavezs/coraza-http-wasm-traefik/
+  - name: plugin-crowdsec-local
+    mountPath: /plugins-local/src/github.com/maxlerebourg/crowdsec-bouncer-traefik-plugin/
   - name: plugin-geoblock-local
     mountPath: /plugins-local/src/github.com/PascalMinder/geoblock/
 
@@ -64,11 +64,11 @@ persistence:
   enabled: true
   path: /data
   size: 1Gi
-  storageClass: hostpath-sc # Add your own storageClass name
+  storageClass: hostpath-sc
 
 logs:
   general:
-    level: INFO
+    level: ERROR
   access:
     enabled: false
     
@@ -90,9 +90,9 @@ deployment:
     type: Recreate
     
   additionalVolumes:
-    - name: plugin-coraza-local
+    - name: plugin-crowdsec-local
       hostPath:
-        path: /data/md0/microk8s-config/microk8s-config-traefik/src/github.com/jcchavezs/coraza-http-wasm-traefik/
+        path: /data/md0/microk8s-config/microk8s-config-traefik/src/github.com/maxlerebourg/crowdsec-bouncer-traefik-plugin/
         type: Directory
     - name: plugin-geoblock-local
       hostPath:
